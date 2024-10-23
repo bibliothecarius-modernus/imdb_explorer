@@ -43,6 +43,10 @@ def search_movies():
             "r": "json"
         }
         
+        headers = {
+            "Content-Type": "application/json"
+        }
+        
         logger.debug(f"Making API request with params: {params}")
         response = requests.get(url, headers=headers, params=params)
         response.raise_for_status()  # Raise an exception for bad status codes
