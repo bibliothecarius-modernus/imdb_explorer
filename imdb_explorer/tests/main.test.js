@@ -125,7 +125,7 @@ describe('IMDb Explorer Frontend', () => {
                 json: async () => mockResponse
             });
             
-            window._currentMovie = {
+            window.currentMovieData = {
                 Title: 'The Matrix',
                 Year: '1999'
             };
@@ -195,3 +195,47 @@ describe('IMDb Explorer Frontend', () => {
         });
     });
 });
+
+async function addToWatchHistory() {
+    if (!currentMovieData) {
+        alert('Please select a movie first');
+        return;
+    }
+
+    const watchDate = document.getElementById('watchDate').value;
+    if (!watchDate) {
+        alert('Please select a watch date');
+        return;
+    }
+
+    try {
+        const response = await fetch('http://localhost:5001/movie/watch', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                watchDate: watchDate,
+                movieData: currentMovieData
+            })
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Movie added to watch history successfully!');
+            // If we're on the history tab, refresh it
+            if (document.querySelector('[data-tab="history"]').classList.contains('active')) {
+                loadWatchHistory();
+            }
+            // Clear the details section
+            document.querySelector('.details-container').classList.add('hidden');
+            currentMovieData = null;
+        } else {
+            throw new Error(data.error || 'Failed to add movie to watch history');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert(`Error adding movie to watch history: ${error.message}`);
+    }
+}

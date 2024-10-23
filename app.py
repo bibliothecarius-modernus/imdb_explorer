@@ -139,7 +139,11 @@ def add_watched_movie():
             watch_date
         ))
         db.commit()
+        logger.info("Movie added to watched_movies successfully")
         return jsonify({"success": True})
+    except sqlite3.Error as e:
+        logger.error(f"Database error: {str(e)}")
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
     except Exception as e:
         logger.error(f"Error adding watched movie: {str(e)}")
         return jsonify({"error": str(e)}), 500
