@@ -17,22 +17,16 @@ app = Flask(__name__)
 
 # Database setup
 def get_db():
-    if not hasattr(app, 'db'):
-        app.db = sqlite3.connect('movies.db', check_same_thread=False)
-        app.db.row_factory = sqlite3.Row
-    return app.db
+    db = sqlite3.connect('movies.db')
+    db.row_factory = sqlite3.Row
+    return db
 
 def init_db():
     with app.app_context():
-        try:
-            db = get_db()
-            with open('schema.sql', 'r') as f:
-                db.executescript(f.read())
-            db.commit()
-            logger.info("Database initialized successfully")
-        except Exception as e:
-            logger.error(f"Error initializing database: {str(e)}")
-            raise
+        db = get_db()
+        with app.open_resource('schema.sql', mode='r') as f:
+            db.cursor().executescript(f.read())
+        db.commit()
 
 # OMDb API Key (using the free API key for development)
 OMDB_API_KEY = '756abb2f'  # This is a free API key for development purposes
@@ -139,11 +133,7 @@ def add_watched_movie():
             watch_date
         ))
         db.commit()
-        logger.info("Movie added to watched_movies successfully")
         return jsonify({"success": True})
-    except sqlite3.Error as e:
-        logger.error(f"Database error: {str(e)}")
-        return jsonify({"error": f"Database error: {str(e)}"}), 500
     except Exception as e:
         logger.error(f"Error adding watched movie: {str(e)}")
         return jsonify({"error": str(e)}), 500
@@ -194,6 +184,20 @@ def get_visualization_data():
         })
     except Exception as e:
         logger.error(f"Error getting visualization data: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+# Add this new route to your Flask app
+
+@app.route('/movie/watch/<int:id>', methods=['DELETE'])
+def delete_watched_movie(id):
+    try:
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute('DELETE FROM watched_movies WHERE id = ?', (id,))
+        db.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error(f"Error deleting movie: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 def process_creators_network(movies):

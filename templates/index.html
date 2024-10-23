@@ -44,11 +44,17 @@
 
             <div id="history-tab" class="tab-content">
                 <div class="filters">
-                    <input type="text" id="historySearch" placeholder="Filter movies...">
-                    <select id="genreFilter">
+                    <input 
+                        type="text" 
+                        id="historySearch" 
+                        placeholder="Search movies..."
+                        aria-label="Search movies">
+                    
+                    <select id="genreFilter" aria-label="Filter by genre">
                         <option value="">All Genres</option>
                     </select>
-                    <select id="yearFilter">
+                    
+                    <select id="yearFilter" aria-label="Filter by year">
                         <option value="">All Years</option>
                     </select>
                 </div>

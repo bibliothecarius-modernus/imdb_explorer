@@ -1132,3 +1132,117 @@ async function loadWatchHistory() {
             '<p class="error-message">Error loading watch history. Please try again later.</p>';
     }
 }
+let watchHistoryData = []; // Store the full dataset
+
+// Update loadWatchHistory to populate filters
+async function loadWatchHistory() {
+    try {
+        // Ensure modal exists
+        createMovieModal();
+
+        const response = await fetch('http://localhost:5001/movies/watched');
+        const movies = await response.json();
+        
+        // Store the full dataset
+        watchHistoryData = movies;
+        
+        // Populate filters
+        populateFilters(movies);
+        
+        // Apply any existing filters
+        filterAndDisplayMovies();
+        
+    } catch (error) {
+        console.error('Error loading watch history:', error);
+        document.getElementById('watchHistory').innerHTML = 
+            '<p class="error-message">Error loading watch history. Please try again later.</p>';
+    }
+}
+
+function populateFilters(movies) {
+    // Populate genre filter
+    const genres = new Set();
+    movies.forEach(movie => {
+        movie.genre.split(', ').forEach(genre => genres.add(genre));
+    });
+    
+    const genreFilter = document.getElementById('genreFilter');
+    genreFilter.innerHTML = '<option value="">All Genres</option>';
+    [...genres].sort().forEach(genre => {
+        genreFilter.innerHTML += `<option value="${genre}">${genre}</option>`;
+    });
+
+    // Populate year filter
+    const years = new Set(movies.map(movie => movie.year));
+    
+    const yearFilter = document.getElementById('yearFilter');
+    yearFilter.innerHTML = '<option value="">All Years</option>';
+    [...years].sort((a, b) => b - a).forEach(year => {
+        yearFilter.innerHTML += `<option value="${year}">${year}</option>`;
+    });
+
+    // Add event listeners for filters
+    document.getElementById('historySearch').addEventListener('input', filterAndDisplayMovies);
+    genreFilter.addEventListener('change', filterAndDisplayMovies);
+    yearFilter.addEventListener('change', filterAndDisplayMovies);
+}
+
+function filterAndDisplayMovies() {
+    const searchTerm = document.getElementById('historySearch').value.toLowerCase();
+    const selectedGenre = document.getElementById('genreFilter').value;
+    const selectedYear = document.getElementById('yearFilter').value;
+
+    const filteredMovies = watchHistoryData.filter(movie => {
+        // Search term filter
+        const matchesSearch = movie.title.toLowerCase().includes(searchTerm);
+        
+        // Genre filter
+        const matchesGenre = !selectedGenre || 
+            movie.genre.split(', ').includes(selectedGenre);
+        
+        // Year filter
+        const matchesYear = !selectedYear || 
+            movie.year.toString() === selectedYear;
+
+        return matchesSearch && matchesGenre && matchesYear;
+    });
+
+    displayFilteredMovies(filteredMovies);
+}
+
+function displayFilteredMovies(movies) {
+    const historyContainer = document.getElementById('watchHistory');
+    historyContainer.innerHTML = '';
+    
+    if (movies.length === 0) {
+        historyContainer.innerHTML = '<p class="no-movies">No movies match your filters</p>';
+        return;
+    }
+
+    movies.forEach(movie => {
+        const movieCard = document.createElement('div');
+        movieCard.className = 'movie-card';
+        
+        const watchDate = new Date(movie.watch_date).toLocaleDateString();
+        
+        movieCard.innerHTML = `
+            <div class="movie-card-content">
+                <div class="poster-container">
+                    ${movie.poster_url ? 
+                        `<img src="${movie.poster_url}" alt="${movie.title} poster" class="movie-poster">` :
+                        '<div class="poster-placeholder">No poster available</div>'
+                    }
+                </div>
+                <div class="movie-info">
+                    <h3>${movie.title}</h3>
+                    <p class="year">${movie.year}</p>
+                    <p class="watch-date">Watched: ${watchDate}</p>
+                    <p class="rating">Rating: ${movie.rating}/10</p>
+                </div>
+            </div>
+        `;
+        
+        movieCard.addEventListener('click', () => showMovieDetails(movie));
+        historyContainer.appendChild(movieCard);
+    });
+}
