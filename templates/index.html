@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IMDb Explorer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>IMDb Explorer</h1>
+            <div class="search-container">
+                <input type="text" id="searchInput" placeholder="Search for movies...">
+                <button onclick="searchMovies()">Search</button>
+            </div>
+        </header>
+
+        <main>
+            <div class="content-wrapper">
+                <div class="results-container">
+                    <h2>Search Results</h2>
+                    <div id="movieResults"></div>
+                </div>
+                
+                <div class="details-container hidden">
+                    <h2>Movie Details</h2>
+                    <div id="movieDetails"></div>
+                </div>
+
+                <div class="visualizations-container">
+                    <h2>Visualizations</h2>
+                    <div class="viz-wrapper">
+                        <div id="ratingChart" class="chart">
+                            <h3>IMDb Ratings Distribution</h3>
+                        </div>
+                        <div id="genreChart" class="chart">
+                            <h3>Genre Distribution</h3>
+                        </div>
+                        <div id="timelineChart" class="chart">
+                            <h3>Release Year Timeline</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
