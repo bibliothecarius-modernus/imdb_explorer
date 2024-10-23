@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IMDb Explorer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://d3js.org/d3-force.v2.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <nav class="tabs">
+            <button class="tab-button active" data-tab="search">Search</button>
+            <button class="tab-button" data-tab="history">Watch History</button>
+            <button class="tab-button" data-tab="analytics">Analytics</button>
+        </nav>
+
+        <main>
+            <div id="search-tab" class="tab-content active">
+                <div class="search-container">
+                    <input type="text" id="searchInput" placeholder="Search for movies...">
+                    <button onclick="searchMovies()" class="primary-button">Search</button>
+                </div>
+
+                <div class="content-wrapper">
+                    <div class="results-container">
+                        <h2>Search Results</h2>
+                        <div id="movieResults" class="grid-layout"></div>
+                    </div>
+                    
+                    <div class="details-container hidden">
+                        <h2>Movie Details</h2>
+                        <div id="movieDetails" class="details-grid"></div>
+                        <div class="watch-section">
+                            <input type="text" id="watchDate" placeholder="Select watch date" class="date-picker">
+                            <button onclick="addToWatchHistory()" class="secondary-button">Add to Watch History</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="history-tab" class="tab-content">
+                <div class="filters">
+                    <input type="text" id="historySearch" placeholder="Filter movies...">
+                    <select id="genreFilter">
+                        <option value="">All Genres</option>
+                    </select>
+                    <select id="yearFilter">
+                        <option value="">All Years</option>
+                    </select>
+                </div>
+                <div id="watchHistory" class="grid-layout"></div>
+            </div>
+
+            <div id="analytics-tab" class="tab-content">
+                <div class="visualizations-container">
+                    <div class="viz-wrapper">
+                        <div id="ratingChart" class="chart">
+                            <h3>IMDb Ratings Distribution</h3>
+                        </div>
+                        <div id="genreChart" class="chart">
+                            <h3>Genre Distribution</h3>
+                        </div>
+                        <div id="timelineChart" class="chart">
+                            <h3>Release Year Timeline</h3>
+                        </div>
+                        <div id="creatorsNetwork" class="chart">
+                            <h3>Directors & Writers Network</h3>
+                        </div>
+                        <div id="viewingPatterns" class="chart">
+                            <h3>Viewing Patterns Over Time</h3>
+                        </div>
+                        <div id="runtimeDistribution" class="chart">
+                            <h3>Runtime Distribution by Genre</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
