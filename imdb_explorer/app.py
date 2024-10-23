@@ -186,6 +186,20 @@ def get_visualization_data():
         logger.error(f"Error getting visualization data: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+# Add this new route to your Flask app
+
+@app.route('/movie/watch/<int:id>', methods=['DELETE'])
+def delete_watched_movie(id):
+    try:
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute('DELETE FROM watched_movies WHERE id = ?', (id,))
+        db.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error(f"Error deleting movie: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 def process_creators_network(movies):
     creators = {}
     collaborations = {}

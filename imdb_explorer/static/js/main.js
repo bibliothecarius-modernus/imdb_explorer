@@ -983,3 +983,152 @@ async function loadAndDisplayVisualizations() {
         });
     }
 }
+// Global variable to store the current movie being viewed
+let currentHistoryMovie = null;
+
+function createMovieModal() {
+    // Create modal if it doesn't exist
+    if (!document.getElementById('movieModal')) {
+        const modal = document.createElement('div');
+        modal.id = 'movieModal';
+        modal.className = 'modal hidden';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <span class="close-button">&times;</span>
+                <div class="modal-body"></div>
+                <div class="modal-footer">
+                    <button class="delete-button">Delete from History</button>
+                    <button class="close-modal-button">Close</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        // Add event listeners for closing
+        const closeButton = modal.querySelector('.close-button');
+        const closeModalButton = modal.querySelector('.close-modal-button');
+        const deleteButton = modal.querySelector('.delete-button');
+
+        [closeButton, closeModalButton].forEach(button => {
+            button.addEventListener('click', () => {
+                modal.classList.add('hidden');
+            });
+        });
+
+        deleteButton.addEventListener('click', async () => {
+            if (currentHistoryMovie && confirm('Are you sure you want to delete this movie from your history?')) {
+                await deleteMovieFromHistory(currentHistoryMovie.id);
+                modal.classList.add('hidden');
+                loadWatchHistory(); // Reload the history
+            }
+        });
+
+        // Close modal when clicking outside
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.add('hidden');
+            }
+        });
+    }
+}
+
+async function deleteMovieFromHistory(movieId) {
+    try {
+        const response = await fetch(`http://localhost:5001/movie/watch/${movieId}`, {
+            method: 'DELETE'
+        });
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to delete movie');
+        }
+    } catch (error) {
+        console.error('Error deleting movie:', error);
+        alert('Failed to delete movie from history');
+    }
+}
+
+function showMovieDetails(movie) {
+    currentHistoryMovie = movie;
+    const modal = document.getElementById('movieModal');
+    const modalBody = modal.querySelector('.modal-body');
+    
+    const watchDate = new Date(movie.watch_date).toLocaleDateString();
+    const runtime = movie.runtime ? `${movie.runtime} minutes` : 'N/A';
+    
+    modalBody.innerHTML = `
+        <div class="movie-detail-grid">
+            <div class="poster-container">
+                ${movie.poster_url ? 
+                    `<img src="${movie.poster_url}" alt="${movie.title} poster" class="movie-poster">` :
+                    '<div class="poster-placeholder">No poster available</div>'
+                }
+            </div>
+            <div class="movie-info">
+                <h2>${movie.title} (${movie.year})</h2>
+                <p><strong>Watched on:</strong> ${watchDate}</p>
+                <p><strong>Director:</strong> ${movie.director || 'N/A'}</p>
+                <p><strong>Writers:</strong> ${movie.writers || 'N/A'}</p>
+                <p><strong>Actors:</strong> ${movie.actors || 'N/A'}</p>
+                <p><strong>Genre:</strong> ${movie.genre || 'N/A'}</p>
+                <p><strong>Runtime:</strong> ${runtime}</p>
+                <p><strong>IMDb Rating:</strong> ${movie.rating}/10</p>
+                <div class="plot">
+                    <strong>Plot:</strong>
+                    <p>${movie.plot || 'No plot available'}</p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    modal.classList.remove('hidden');
+}
+
+async function loadWatchHistory() {
+    try {
+        // Ensure modal exists
+        createMovieModal();
+
+        const response = await fetch('http://localhost:5001/movies/watched');
+        const movies = await response.json();
+        
+        const historyContainer = document.getElementById('watchHistory');
+        historyContainer.innerHTML = '';
+        
+        if (movies.length === 0) {
+            historyContainer.innerHTML = '<p class="no-movies">No movies in watch history</p>';
+            return;
+        }
+
+        movies.forEach(movie => {
+            const movieCard = document.createElement('div');
+            movieCard.className = 'movie-card';
+            
+            const watchDate = new Date(movie.watch_date).toLocaleDateString();
+            
+            movieCard.innerHTML = `
+                <div class="movie-card-content">
+                    <div class="poster-container">
+                        ${movie.poster_url ? 
+                            `<img src="${movie.poster_url}" alt="${movie.title} poster" class="movie-poster">` :
+                            '<div class="poster-placeholder">No poster available</div>'
+                        }
+                    </div>
+                    <div class="movie-info">
+                        <h3>${movie.title}</h3>
+                        <p class="year">${movie.year}</p>
+                        <p class="watch-date">Watched: ${watchDate}</p>
+                        <p class="rating">Rating: ${movie.rating}/10</p>
+                    </div>
+                </div>
+            `;
+            
+            movieCard.addEventListener('click', () => showMovieDetails(movie));
+            historyContainer.appendChild(movieCard);
+        });
+    } catch (error) {
+        console.error('Error loading watch history:', error);
+        document.getElementById('watchHistory').innerHTML = 
+            '<p class="error-message">Error loading watch history. Please try again later.</p>';
+    }
+}
