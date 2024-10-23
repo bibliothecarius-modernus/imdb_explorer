@@ -3,6 +3,9 @@ import requests
 import os
 import logging
 from dotenv import load_dotenv
+import sqlite3
+from datetime import datetime
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -11,6 +14,25 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 app = Flask(__name__)
+
+# Database setup
+def get_db():
+    if not hasattr(app, 'db'):
+        app.db = sqlite3.connect('movies.db', check_same_thread=False)
+        app.db.row_factory = sqlite3.Row
+    return app.db
+
+def init_db():
+    with app.app_context():
+        try:
+            db = get_db()
+            with open('schema.sql', 'r') as f:
+                db.executescript(f.read())
+            db.commit()
+            logger.info("Database initialized successfully")
+        except Exception as e:
+            logger.error(f"Error initializing database: {str(e)}")
+            raise
 
 # OMDb API Key (using the free API key for development)
 OMDB_API_KEY = '756abb2f'  # This is a free API key for development purposes
@@ -81,6 +103,153 @@ def get_movie_details(imdb_id):
         logger.error(f"Error getting movie details: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/movie/watch', methods=['POST'])
+def add_watched_movie():
+    try:
+        data = request.get_json()
+        watch_date = data.get('watchDate')
+        movie_data = data.get('movieData')
+
+        if not watch_date or not movie_data:
+            return jsonify({"error": "Missing required data"}), 400
+
+        # Convert runtime to minutes
+        runtime = movie_data.get('Runtime', '0 min').split()[0]
+        runtime = int(runtime) if runtime.isdigit() else 0
+
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute("""
+            INSERT INTO watched_movies (
+                imdb_id, title, year, director, writers, actors,
+                genre, runtime, rating, plot, poster_url, watch_date
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            movie_data.get('imdbID'),
+            movie_data.get('Title'),
+            int(movie_data.get('Year', '0')),
+            movie_data.get('Director'),
+            movie_data.get('Writer'),
+            movie_data.get('Actors'),
+            movie_data.get('Genre'),
+            runtime,
+            float(movie_data.get('imdbRating', '0')),
+            movie_data.get('Plot'),
+            movie_data.get('Poster'),
+            watch_date
+        ))
+        db.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error(f"Error adding watched movie: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/movies/watched')
+def get_watched_movies():
+    try:
+        db = get_db()
+        cursor = db.cursor()
+        movies = cursor.execute("""
+            SELECT * FROM watched_movies 
+            ORDER BY watch_date DESC
+        """).fetchall()
+        
+        return jsonify([dict(movie) for movie in movies])
+    except Exception as e:
+        logger.error(f"Error getting watched movies: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/visualizations/data')
+def get_visualization_data():
+    try:
+        db = get_db()
+        cursor = db.cursor()
+        
+        # Get all needed data for visualizations
+        movies = cursor.execute("""
+            SELECT * FROM watched_movies 
+            ORDER BY watch_date
+        """).fetchall()
+        
+        # Process data for various visualizations
+        movies_data = [dict(movie) for movie in movies]
+        
+        # Directors and writers network
+        creators_data = process_creators_network(movies_data)
+        
+        # Viewing patterns over time
+        viewing_patterns = process_viewing_patterns(movies_data)
+        
+        # Runtime distribution by genre
+        runtime_distribution = process_runtime_distribution(movies_data)
+        
+        return jsonify({
+            "creators_network": creators_data,
+            "viewing_patterns": viewing_patterns,
+            "runtime_distribution": runtime_distribution
+        })
+    except Exception as e:
+        logger.error(f"Error getting visualization data: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+def process_creators_network(movies):
+    creators = {}
+    collaborations = {}
+    
+    for movie in movies:
+        directors = [d.strip() for d in movie['director'].split(',') if d.strip()]
+        writers = [w.strip() for w in movie['writers'].split(',') if w.strip()]
+        
+        # Add nodes
+        for creator in directors + writers:
+            if creator not in creators:
+                creators[creator] = {
+                    'name': creator,
+                    'role': 'director' if creator in directors else 'writer',
+                    'movies': []
+                }
+            creators[creator]['movies'].append(movie['title'])
+        
+        # Add edges (collaborations)
+        all_creators = directors + writers
+        for i in range(len(all_creators)):
+            for j in range(i + 1, len(all_creators)):
+                pair = tuple(sorted([all_creators[i], all_creators[j]]))
+                if pair not in collaborations:
+                    collaborations[pair] = {
+                        'source': pair[0],
+                        'target': pair[1],
+                        'movies': []
+                    }
+                collaborations[pair]['movies'].append(movie['title'])
+    
+    return {
+        'nodes': list(creators.values()),
+        'links': list(collaborations.values())
+    }
+
+def process_viewing_patterns(movies):
+    patterns = {}
+    for movie in movies:
+        watch_date = datetime.strptime(movie['watch_date'], '%Y-%m-%d')
+        year_week = watch_date.strftime('%Y-%W')
+        if year_week not in patterns:
+            patterns[year_week] = 0
+        patterns[year_week] += 1
+    
+    return [{'date': k, 'count': v} for k, v in patterns.items()]
+
+def process_runtime_distribution(movies):
+    distribution = {}
+    for movie in movies:
+        genres = [g.strip() for g in movie['genre'].split(',')]
+        for genre in genres:
+            if genre not in distribution:
+                distribution[genre] = []
+            distribution[genre].append(movie['runtime'])
+    
+    return distribution
+
 @app.after_request
 def after_request(response):
     response.headers.add('Access-Control-Allow-Origin', '*')
@@ -89,4 +258,5 @@ def after_request(response):
     return response
 
 if __name__ == '__main__':
+    init_db()
     app.run(debug=True, port=5001)
