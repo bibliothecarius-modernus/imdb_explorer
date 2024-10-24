@@ -412,100 +412,25 @@ function createCreatorsNetwork(data) {
 
     // Update the container HTML structure
     container.innerHTML = `
+        <h3>Film Collaboration Network</h3>
         <div class="network-container">
             <div class="network-main">
                 <div class="network-header">
                     <div class="network-search">
                         <input type="text" id="networkSearch" placeholder="Search for directors, writers, or actors...">
                     </div>
-                    <button class="fullscreen-btn" id="networkFullscreen">
-                        <svg width="16" height="16" viewBox="0 0 16 16">
-                            <path d="M1.5 1h4v1.5h-2.5v2.5h-1.5v-4zm13 0v4h-1.5v-2.5h-2.5v-1.5h4zm-13 13v-4h1.5v2.5h2.5v1.5h-4zm13 0h-4v-1.5h2.5v-2.5h1.5v4z"/>
-                        </svg>
-                        Expand Network
-                    </button>
                 </div>
                 <div class="network-viz"></div>
-            </div>
-            <div class="top-collaborators">
-                <h4>Most Connected People</h4>
-                <div class="collaborators-list"></div>
-            </div>
-        </div>
-
-        <!-- Fullscreen Modal -->
-        <div id="networkModal" class="network-modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <div class="network-search">
-                        <input type="text" id="modalNetworkSearch" placeholder="Search for directors, writers, or actors...">
-                    </div>
-                    <button class="close-modal-btn">
-                        <svg width="16" height="16" viewBox="0 0 16 16">
-                            <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
-                        </svg>
-                    </button>
-                </div>
-                <div class="modal-network-viz"></div>
             </div>
         </div>
     `;
 
-    // Initialize both visualizations
+    // Initialize the visualization
     const mainViz = initializeNetworkViz(
         container.querySelector('.network-viz'), 
         data, 
         false
     );
-    
-    let modalViz = null;
-    
-    // Handle fullscreen toggle
-    const fullscreenBtn = document.getElementById('networkFullscreen');
-    const modal = document.getElementById('networkModal');
-    const closeBtn = modal.querySelector('.close-modal-btn');
-    
-    fullscreenBtn.addEventListener('click', () => {
-        modal.classList.add('active');
-        document.body.style.overflow = 'hidden';
-        
-        // Initialize modal visualization if it doesn't exist
-        if (!modalViz) {
-            modalViz = initializeNetworkViz(
-                modal.querySelector('.modal-network-viz'), 
-                data, 
-                true
-            );
-        }
-        
-        // Sync search between views
-        const mainSearch = document.getElementById('networkSearch');
-        const modalSearch = document.getElementById('modalNetworkSearch');
-        modalSearch.value = mainSearch.value;
-        if (mainSearch.value) {
-            modalSearch.dispatchEvent(new Event('input'));
-        }
-    });
-    
-    closeBtn.addEventListener('click', () => {
-        modal.classList.remove('active');
-        document.body.style.overflow = '';
-        
-        // Sync search back to main view
-        const mainSearch = document.getElementById('networkSearch');
-        const modalSearch = document.getElementById('modalNetworkSearch');
-        mainSearch.value = modalSearch.value;
-        if (modalSearch.value) {
-            mainSearch.dispatchEvent(new Event('input'));
-        }
-    });
-    
-    // ESC key to close modal
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && modal.classList.contains('active')) {
-            closeBtn.click();
-        }
-    });
 }
 
 // Function to initialize network visualization
@@ -524,40 +449,6 @@ function initializeNetworkViz(container, data, isFullscreen) {
         'writer': '#1f77b4',    // blue
         'actor': '#2ca02c'      // green
     };
-
-    // Calculate top collaborators
-    const topCollaborators = data.nodes
-        .sort((a, b) => (b.collaborations || 0) - (a.collaborations || 0))
-        .slice(0, 10);
-
-    // Populate top collaborators list
-    const collaboratorsList = d3.select(container).select('.collaborators-list');
-    
-    // Update collaborator item creation to be more compact
-    topCollaborators.forEach((person, index) => {
-        collaboratorsList.append('div')
-            .attr('class', 'collaborator-item')
-            .html(`
-                <div class="collaborator-rank">${index + 1}</div>
-                <div class="collaborator-info">
-                    <div class="collaborator-name">${person.name}</div>
-                    <span class="role-badge" style="background-color: ${roleColor[person.role]}">
-                        ${person.role.charAt(0).toUpperCase() + person.role.slice(1)}
-                    </span>
-                    <span class="collab-count">
-                        ${person.collaborations} collaborations
-                    </span>
-                    <div class="collaborator-movies">
-                        ${person.movies.length} movies
-                    </div>
-                </div>
-            `)
-            .on('click', () => {
-                const searchInput = document.getElementById(isFullscreen ? 'modalNetworkSearch' : 'networkSearch');
-                searchInput.value = person.name;
-                searchInput.dispatchEvent(new Event('input'));
-            });
-    });
 
     // Adjust force simulation for better layout in the available space
     const simulation = d3.forceSimulation(data.nodes)
@@ -590,6 +481,24 @@ function initializeNetworkViz(container, data, isFullscreen) {
             .on('start', dragstarted)
             .on('drag', dragged)
             .on('end', dragended));
+
+    // Add circles to node groups
+    nodeGroups.append('circle')
+        .attr('r', d => 5 + (d.centrality * 15))
+        .style('fill', d => roleColor[d.role])
+        .style('stroke', '#fff')
+        .style('stroke-width', 1.5);
+
+    // Add labels to node groups
+    nodeGroups.append('text')
+        .text(d => d.name)
+        .attr('dx', 12)
+        .attr('dy', 4)
+        .style('font-size', '12px')
+        .style('font-family', 'Arial')
+        .style('opacity', 0.7);
+
+    // Add tooltips
 
     // Add circles to node groups
     nodeGroups.append('circle')
