@@ -399,31 +399,174 @@ function createDragBehavior(simulation) {
         });
 }
 
+
 // Function to create creators network
 function createCreatorsNetwork(data) {
     if (!data.nodes || !data.links || data.nodes.length === 0) {
         const container = document.getElementById('creatorsNetwork');
-        container.innerHTML = '<h3>Directors & Writers Network</h3><p>No network data available</p>';
+        container.innerHTML = '<h3>Film Collaboration Network</h3><p>No network data available</p>';
         return;
     }
 
     const container = document.getElementById('creatorsNetwork');
+
+    // Update the container HTML structure
+    container.innerHTML = `
+        <div class="network-container">
+            <div class="network-main">
+                <div class="network-header">
+                    <div class="network-search">
+                        <input type="text" id="networkSearch" placeholder="Search for directors, writers, or actors...">
+                    </div>
+                    <button class="fullscreen-btn" id="networkFullscreen">
+                        <svg width="16" height="16" viewBox="0 0 16 16">
+                            <path d="M1.5 1h4v1.5h-2.5v2.5h-1.5v-4zm13 0v4h-1.5v-2.5h-2.5v-1.5h4zm-13 13v-4h1.5v2.5h2.5v1.5h-4zm13 0h-4v-1.5h2.5v-2.5h1.5v4z"/>
+                        </svg>
+                        Expand Network
+                    </button>
+                </div>
+                <div class="network-viz"></div>
+            </div>
+            <div class="top-collaborators">
+                <h4>Most Connected People</h4>
+                <div class="collaborators-list"></div>
+            </div>
+        </div>
+
+        <!-- Fullscreen Modal -->
+        <div id="networkModal" class="network-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="network-search">
+                        <input type="text" id="modalNetworkSearch" placeholder="Search for directors, writers, or actors...">
+                    </div>
+                    <button class="close-modal-btn">
+                        <svg width="16" height="16" viewBox="0 0 16 16">
+                            <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-network-viz"></div>
+            </div>
+        </div>
+    `;
+
+    // Initialize both visualizations
+    const mainViz = initializeNetworkViz(
+        container.querySelector('.network-viz'), 
+        data, 
+        false
+    );
+    
+    let modalViz = null;
+    
+    // Handle fullscreen toggle
+    const fullscreenBtn = document.getElementById('networkFullscreen');
+    const modal = document.getElementById('networkModal');
+    const closeBtn = modal.querySelector('.close-modal-btn');
+    
+    fullscreenBtn.addEventListener('click', () => {
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+        
+        // Initialize modal visualization if it doesn't exist
+        if (!modalViz) {
+            modalViz = initializeNetworkViz(
+                modal.querySelector('.modal-network-viz'), 
+                data, 
+                true
+            );
+        }
+        
+        // Sync search between views
+        const mainSearch = document.getElementById('networkSearch');
+        const modalSearch = document.getElementById('modalNetworkSearch');
+        modalSearch.value = mainSearch.value;
+        if (mainSearch.value) {
+            modalSearch.dispatchEvent(new Event('input'));
+        }
+    });
+    
+    closeBtn.addEventListener('click', () => {
+        modal.classList.remove('active');
+        document.body.style.overflow = '';
+        
+        // Sync search back to main view
+        const mainSearch = document.getElementById('networkSearch');
+        const modalSearch = document.getElementById('modalNetworkSearch');
+        mainSearch.value = modalSearch.value;
+        if (modalSearch.value) {
+            mainSearch.dispatchEvent(new Event('input'));
+        }
+    });
+    
+    // ESC key to close modal
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            closeBtn.click();
+        }
+    });
+}
+
+// Function to initialize network visualization
+function initializeNetworkViz(container, data, isFullscreen) {
     const width = container.clientWidth;
-    const height = 400;
-
-    // Clear previous visualization
-    container.innerHTML = '<h3>Directors & Writers Network</h3>';
-
+    const height = container.clientHeight || (isFullscreen ? window.innerHeight - 100 : 400);
+    
     const svg = d3.select(container)
         .append('svg')
         .attr('viewBox', `0 0 ${width} ${height}`)
         .attr('preserveAspectRatio', 'xMidYMid meet');
 
-    // Create force simulation
+    // Define color scale for different roles
+    const roleColor = {
+        'director': '#ff7f0e',  // orange
+        'writer': '#1f77b4',    // blue
+        'actor': '#2ca02c'      // green
+    };
+
+    // Calculate top collaborators
+    const topCollaborators = data.nodes
+        .sort((a, b) => (b.collaborations || 0) - (a.collaborations || 0))
+        .slice(0, 10);
+
+    // Populate top collaborators list
+    const collaboratorsList = d3.select(container).select('.collaborators-list');
+    
+    // Update collaborator item creation to be more compact
+    topCollaborators.forEach((person, index) => {
+        collaboratorsList.append('div')
+            .attr('class', 'collaborator-item')
+            .html(`
+                <div class="collaborator-rank">${index + 1}</div>
+                <div class="collaborator-info">
+                    <div class="collaborator-name">${person.name}</div>
+                    <span class="role-badge" style="background-color: ${roleColor[person.role]}">
+                        ${person.role.charAt(0).toUpperCase() + person.role.slice(1)}
+                    </span>
+                    <span class="collab-count">
+                        ${person.collaborations} collaborations
+                    </span>
+                    <div class="collaborator-movies">
+                        ${person.movies.length} movies
+                    </div>
+                </div>
+            `)
+            .on('click', () => {
+                const searchInput = document.getElementById(isFullscreen ? 'modalNetworkSearch' : 'networkSearch');
+                searchInput.value = person.name;
+                searchInput.dispatchEvent(new Event('input'));
+            });
+    });
+
+    // Adjust force simulation for better layout in the available space
     const simulation = d3.forceSimulation(data.nodes)
         .force('link', d3.forceLink(data.links).id(d => d.name))
-        .force('charge', d3.forceManyBody().strength(-100))
-        .force('center', d3.forceCenter(width / 2, height / 2));
+        .force('charge', d3.forceManyBody().strength(-150)) // Increased strength
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide().radius(d => 10 + (d.centrality * 15)))
+        .force('x', d3.forceX(width / 2).strength(0.1))
+        .force('y', d3.forceY(height / 2).strength(0.1));
 
     // Create links
     const links = svg.append('g')
@@ -431,7 +574,8 @@ function createCreatorsNetwork(data) {
         .data(data.links)
         .enter()
         .append('line')
-        .style('stroke', '#999')
+        .attr('class', 'network-link')
+        .style('stroke', d => d.type === 'director-writer' ? '#999' : '#ddd')
         .style('stroke-opacity', 0.6)
         .style('stroke-width', d => Math.sqrt(d.movies.length));
 
@@ -441,12 +585,18 @@ function createCreatorsNetwork(data) {
         .data(data.nodes)
         .enter()
         .append('g')
-        .call(createDragBehavior(simulation));
+        .attr('class', 'network-node')
+        .call(d3.drag()
+            .on('start', dragstarted)
+            .on('drag', dragged)
+            .on('end', dragended));
 
     // Add circles to node groups
     nodeGroups.append('circle')
-        .attr('r', d => 5 + d.movies.length)
-        .style('fill', d => d.role === 'director' ? '#ff7f0e' : '#1f77b4');
+        .attr('r', d => 5 + (d.centrality * 15))
+        .style('fill', d => roleColor[d.role])
+        .style('stroke', '#fff')
+        .style('stroke-width', 1.5);
 
     // Add labels to node groups
     nodeGroups.append('text')
@@ -454,13 +604,48 @@ function createCreatorsNetwork(data) {
         .attr('dx', 12)
         .attr('dy', 4)
         .style('font-size', '12px')
-        .style('font-family', 'Arial');
+        .style('font-family', 'Arial')
+        .style('opacity', 0.7);
 
     // Add tooltips
     nodeGroups.append('title')
         .text(d => `${d.name}\nRole: ${d.role}\nMovies: ${d.movies.join(', ')}`);
 
-    // Update positions
+    // Search functionality
+    const searchInput = document.getElementById(isFullscreen ? 'modalNetworkSearch' : 'networkSearch');
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        
+        nodeGroups.style('opacity', 1);
+        links.style('opacity', 0.6);
+        
+        if (searchTerm) {
+            const matchingNodes = new Set();
+            let firstMatch = null;
+            
+            data.nodes.forEach(node => {
+                if (node.name.toLowerCase().includes(searchTerm)) {
+                    if (!firstMatch) firstMatch = node.name;
+                    matchingNodes.add(node.name);
+                    data.links.forEach(link => {
+                        if (link.source.name === node.name) matchingNodes.add(link.target.name);
+                        if (link.target.name === node.name) matchingNodes.add(link.source.name);
+                    });
+                }
+            });
+            
+            nodeGroups.style('opacity', d => matchingNodes.has(d.name) ? 1 : 0.1);
+            links.style('opacity', d => 
+                matchingNodes.has(d.source.name) && matchingNodes.has(d.target.name) ? 0.6 : 0.1
+            );
+            
+            if (firstMatch) {
+                centerNode(firstMatch);
+            }
+        }
+    });
+
+    // Simulation update
     simulation.on('tick', () => {
         links
             .attr('x1', d => d.source.x)
@@ -473,31 +658,76 @@ function createCreatorsNetwork(data) {
 
     // Add legend
     const legend = svg.append('g')
-        .attr('transform', `translate(${width - 100}, 20)`);
+        .attr('transform', `translate(${width - 120}, 20)`);
 
-    legend.append('circle')
-        .attr('r', 5)
-        .attr('cx', 0)
-        .attr('cy', 0)
-        .style('fill', '#ff7f0e');
+    const roles = [
+        { role: 'Director', color: roleColor.director },
+        { role: 'Writer', color: roleColor.writer },
+        { role: 'Actor', color: roleColor.actor }
+    ];
 
-    legend.append('text')
-        .attr('x', 10)
-        .attr('y', 4)
-        .text('Director')
-        .style('font-size', '12px');
+    roles.forEach((role, i) => {
+        const g = legend.append('g')
+            .attr('transform', `translate(0, ${i * 25})`);
 
-    legend.append('circle')
-        .attr('r', 5)
-        .attr('cx', 0)
-        .attr('cy', 20)
-        .style('fill', '#1f77b4');
+        g.append('circle')
+            .attr('r', 5)
+            .attr('cx', 0)
+            .attr('cy', 0)
+            .style('fill', role.color);
 
-    legend.append('text')
-        .attr('x', 10)
-        .attr('y', 24)
-        .text('Writer')
-        .style('font-size', '12px');
+        g.append('text')
+            .attr('x', 15)
+            .attr('y', 4)
+            .text(role.role)
+            .style('font-size', '12px');
+    });
+
+    // Drag functions
+    function dragstarted(event) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        event.subject.fx = event.subject.x;
+        event.subject.fy = event.subject.y;
+    }
+
+    function dragged(event) {
+        event.subject.fx = event.x;
+        event.subject.fy = event.y;
+    }
+
+    function dragended(event) {
+        if (!event.active) simulation.alphaTarget(0);
+        event.subject.fx = null;
+        event.subject.fy = null;
+    }
+
+    // Center node function
+    function centerNode(nodeName) {
+        const node = data.nodes.find(n => n.name === nodeName);
+        if (!node) return;
+
+        simulation.stop();
+
+        const dx = width / 2 - node.x;
+        const dy = height / 2 - node.y;
+
+        data.nodes.forEach(n => {
+            n.x += dx;
+            n.y += dy;
+        });
+
+        links
+            .attr('x1', d => d.source.x)
+            .attr('y1', d => d.source.y)
+            .attr('x2', d => d.target.x)
+            .attr('y2', d => d.target.y);
+
+        nodeGroups.attr('transform', d => `translate(${d.x},${d.y})`);
+
+        simulation.alpha(0.3).restart();
+    }
+
+    return { simulation, nodeGroups, links };
 }
 
 // Add these new functions to handle the ratings and genre distributions
@@ -626,63 +856,86 @@ function createViewingPatterns(data) {
     const container = document.getElementById('viewingPatterns');
     const width = container.clientWidth;
     const height = 300;
-    const margin = { top: 20, right: 30, bottom: 30, left: 40 };
+    const margin = { top: 20, right: 30, bottom: 50, left: 60 };
 
     // Clear previous visualization
     container.innerHTML = '<h3>Viewing Patterns Over Time</h3>';
+
+    // Process data by month
+    const monthlyData = {};
+    data.forEach(d => {
+        const date = d3.timeParse('%Y-%W')(d.date);
+        const monthKey = d3.timeFormat('%Y-%m')(date);
+        monthlyData[monthKey] = (monthlyData[monthKey] || 0) + d.count;
+    });
+
+    const processedData = Object.entries(monthlyData)
+        .map(([date, count]) => ({
+            date: d3.timeParse('%Y-%m')(date),
+            count: count
+        }))
+        .sort((a, b) => a.date - b.date);
 
     const svg = d3.select(container)
         .append('svg')
         .attr('viewBox', `0 0 ${width} ${height}`)
         .attr('preserveAspectRatio', 'xMidYMid meet');
 
-    // Parse dates
-    const parseDate = d3.timeParse('%Y-%W');
-    const formatDate = d3.timeFormat('%b %Y');
-    
-    const formattedData = data.map(d => ({
-        date: parseDate(d.date),
-        count: d.count
-    })).sort((a, b) => a.date - b.date);
-
     // Create scales
     const x = d3.scaleTime()
-        .domain(d3.extent(formattedData, d => d.date))
+        .domain(d3.extent(processedData, d => d.date))
         .range([margin.left, width - margin.right]);
 
     const y = d3.scaleLinear()
-        .domain([0, d3.max(formattedData, d => d.count)])
+        .domain([0, d3.max(processedData, d => d.count)])
         .nice()
         .range([height - margin.bottom, margin.top]);
 
-    // Create line generator
+    // Create line
     const line = d3.line()
         .x(d => x(d.date))
         .y(d => y(d.count))
         .curve(d3.curveMonotoneX);
 
+    // Add the area
+    const area = d3.area()
+        .x(d => x(d.date))
+        .y0(y(0))
+        .y1(d => y(d.count))
+        .curve(d3.curveMonotoneX);
+
+    svg.append('path')
+        .datum(processedData)
+        .attr('fill', 'steelblue')
+        .attr('fill-opacity', 0.2)
+        .attr('d', area);
+
     // Add the line path
     svg.append('path')
-        .datum(formattedData)
+        .datum(processedData)
         .attr('fill', 'none')
         .attr('stroke', 'steelblue')
-        .attr('stroke-width', 1.5)
+        .attr('stroke-width', 2)
         .attr('d', line);
 
     // Add dots
     svg.selectAll('circle')
-        .data(formattedData)
+        .data(processedData)
         .enter()
         .append('circle')
         .attr('cx', d => x(d.date))
         .attr('cy', d => y(d.count))
         .attr('r', 4)
-        .attr('fill', 'steelblue');
+        .attr('fill', 'steelblue')
+        .append('title')
+        .text(d => `${d3.timeFormat('%B %Y')(d.date)}: ${d.count} movies`);
 
-    // Add axes
+    // Add axes with improved formatting
     svg.append('g')
         .attr('transform', `translate(0,${height - margin.bottom})`)
-        .call(d3.axisBottom(x).tickFormat(formatDate))
+        .call(d3.axisBottom(x)
+            .ticks(d3.timeMonth.every(2))
+            .tickFormat(d3.timeFormat('%b %Y')))
         .selectAll('text')
         .style('text-anchor', 'end')
         .attr('dx', '-.8em')
@@ -695,9 +948,8 @@ function createViewingPatterns(data) {
 
     // Add labels
     svg.append('text')
-        .attr('class', 'y-label')
         .attr('transform', 'rotate(-90)')
-        .attr('y', 0)
+        .attr('y', margin.left - 50)
         .attr('x', -height/2)
         .attr('dy', '1em')
         .style('text-anchor', 'middle')
@@ -810,7 +1062,16 @@ function createRuntimeDistribution(data) {
         .style('text-anchor', 'end')
         .attr('dx', '-.8em')
         .attr('dy', '.15em')
-        .attr('transform', 'rotate(-45)');
+        .attr('transform', 'rotate(-45)')
+        .style('font-size', '10px')  // Smaller font size for better fit
+        .each(function(d) {
+            // Truncate long genre names
+            const text = d3.select(this);
+            if (d.length > 15) {
+                text.text(d.substring(0, 12) + '...');
+                text.append('title').text(d); // Add tooltip for full name
+            }
+        });
 
     svg.append('g')
         .attr('transform', `translate(${margin.left},0)`)
@@ -836,21 +1097,24 @@ function createReleaseYearTimeline(movies) {
     const container = document.getElementById('timelineChart');
     const width = container.clientWidth;
     const height = 300;
-    const margin = { top: 20, right: 30, bottom: 30, left: 40 };
+    const margin = { top: 20, right: 30, bottom: 40, left: 60 };
 
     // Clear previous visualization
     container.innerHTML = '<h3>Release Year Timeline</h3>';
 
-    // Process data
-    const yearCounts = {};
+    // Process data into decades
+    const decades = {};
     movies.forEach(movie => {
-        const year = movie.year;
-        yearCounts[year] = (yearCounts[year] || 0) + 1;
+        const decade = Math.floor(movie.year / 10) * 10;
+        decades[decade] = (decades[decade] || 0) + 1;
     });
 
-    const data = Object.entries(yearCounts)
-        .map(([year, count]) => ({ year: parseInt(year), count }))
-        .sort((a, b) => a.year - b.year);
+    const data = Object.entries(decades)
+        .map(([decade, count]) => ({
+            decade: parseInt(decade),
+            count: count
+        }))
+        .sort((a, b) => a.decade - b.decade);
 
     const svg = d3.select(container)
         .append('svg')
@@ -858,74 +1122,55 @@ function createReleaseYearTimeline(movies) {
         .attr('preserveAspectRatio', 'xMidYMid meet');
 
     // Create scales
-    const x = d3.scaleTime()
-        .domain([
-            new Date(d3.min(data, d => d.year), 0, 1),
-            new Date(d3.max(data, d => d.year), 11, 31)
-        ])
-        .range([margin.left, width - margin.right]);
+    const x = d3.scaleBand()
+        .domain(data.map(d => d.decade))
+        .range([margin.left, width - margin.right])
+        .padding(0.1);
 
     const y = d3.scaleLinear()
         .domain([0, d3.max(data, d => d.count)])
         .nice()
         .range([height - margin.bottom, margin.top]);
 
-    // Create area generator
-    const area = d3.area()
-        .x(d => x(new Date(d.year, 0, 1)))
-        .y0(y(0))
-        .y1(d => y(d.count))
-        .curve(d3.curveMonotoneX);
-
-    // Add area
-    svg.append('path')
-        .datum(data)
-        .attr('fill', 'steelblue')
-        .attr('fill-opacity', 0.6)
-        .attr('d', area);
-
-    // Add line
-    const line = d3.line()
-        .x(d => x(new Date(d.year, 0, 1)))
-        .y(d => y(d.count))
-        .curve(d3.curveMonotoneX);
-
-    svg.append('path')
-        .datum(data)
-        .attr('fill', 'none')
-        .attr('stroke', 'steelblue')
-        .attr('stroke-width', 2)
-        .attr('d', line);
-
-    // Add dots
-    svg.selectAll('circle')
+    // Create bars
+    svg.selectAll('rect')
         .data(data)
         .enter()
-        .append('circle')
-        .attr('cx', d => x(new Date(d.year, 0, 1)))
-        .attr('cy', d => y(d.count))
-        .attr('r', 4)
+        .append('rect')
+        .attr('x', d => x(d.decade))
+        .attr('y', d => y(d.count))
+        .attr('width', x.bandwidth())
+        .attr('height', d => height - margin.bottom - y(d.count))
         .attr('fill', 'steelblue')
         .append('title')
-        .text(d => `${d.year}: ${d.count} movies`);
+        .text(d => `${d.decade}s: ${d.count} movies`);
+
+    // Add labels on top of bars
+    svg.selectAll('.bar-label')
+        .data(data)
+        .enter()
+        .append('text')
+        .attr('class', 'bar-label')
+        .attr('x', d => x(d.decade) + x.bandwidth() / 2)
+        .attr('y', d => y(d.count) - 5)
+        .attr('text-anchor', 'middle')
+        .text(d => d.count)
+        .style('font-size', '12px');
 
     // Add axes
     svg.append('g')
         .attr('transform', `translate(0,${height - margin.bottom})`)
         .call(d3.axisBottom(x)
-            .ticks(d3.timeYear.every(1))
-            .tickFormat(d3.timeFormat('%Y')));
+            .tickFormat(d => `${d}s`));
 
     svg.append('g')
         .attr('transform', `translate(${margin.left},0)`)
-        .call(d3.axisLeft(y)
-            .ticks(5)
-            .tickFormat(d => Math.round(d)));
+        .call(d3.axisLeft(y).ticks(5));
 
     // Add labels
     svg.append('text')
         .attr('transform', 'rotate(-90)')
-        .attr('y', margin.left - 40)
+        .attr('y', margin.left - 50)
         .attr('x', -height/2)
         .attr('dy', '1em')
         .style('text-anchor', 'middle')

@@ -168,7 +168,7 @@ def get_visualization_data():
         # Process data for various visualizations
         movies_data = [dict(movie) for movie in movies]
         
-        # Directors and writers network
+        # Directors, writers, and actors network
         creators_data = process_creators_network(movies_data)
         
         # Viewing patterns over time
@@ -207,19 +207,23 @@ def process_creators_network(movies):
     for movie in movies:
         directors = [d.strip() for d in movie['director'].split(',') if d.strip()]
         writers = [w.strip() for w in movie['writers'].split(',') if w.strip()]
+        actors = [a.strip() for a in movie['actors'].split(',') if a.strip()]
         
-        # Add nodes
-        for creator in directors + writers:
+        # Add nodes for all creators
+        for creator in directors + writers + actors:
             if creator not in creators:
                 creators[creator] = {
                     'name': creator,
-                    'role': 'director' if creator in directors else 'writer',
-                    'movies': []
+                    'role': 'director' if creator in directors else 
+                           'writer' if creator in writers else 'actor',
+                    'movies': [],
+                    'collaborations': 0  # Initialize collaboration count
                 }
-            creators[creator]['movies'].append(movie['title'])
+            if movie['title'] not in creators[creator]['movies']:
+                creators[creator]['movies'].append(movie['title'])
         
-        # Add edges (collaborations)
-        all_creators = directors + writers
+        # Add edges and count collaborations
+        all_creators = list(set(directors + writers + actors))  # Remove duplicates
         for i in range(len(all_creators)):
             for j in range(i + 1, len(all_creators)):
                 pair = tuple(sorted([all_creators[i], all_creators[j]]))
@@ -227,9 +231,20 @@ def process_creators_network(movies):
                     collaborations[pair] = {
                         'source': pair[0],
                         'target': pair[1],
-                        'movies': []
+                        'movies': [],
+                        'type': 'director-writer' if (creators[pair[0]]['role'] in ['director', 'writer'] and 
+                                                    creators[pair[1]]['role'] in ['director', 'writer']) else 'cast'
                     }
-                collaborations[pair]['movies'].append(movie['title'])
+                if movie['title'] not in collaborations[pair]['movies']:
+                    collaborations[pair]['movies'].append(movie['title'])
+                    # Increment collaboration count for both creators
+                    creators[pair[0]]['collaborations'] += 1
+                    creators[pair[1]]['collaborations'] += 1
+    
+    # Calculate normalized centrality
+    max_collabs = max((c['collaborations'] for c in creators.values()), default=1)
+    for creator in creators.values():
+        creator['centrality'] = creator['collaborations'] / max_collabs
     
     return {
         'nodes': list(creators.values()),
